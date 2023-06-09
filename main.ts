@@ -1,16 +1,36 @@
 import { App, Editor, MarkdownView, MarkdownRenderer, Modal, Notice, Plugin, PluginSettingTab, Setting, parseYaml, stringifyYaml, request } from 'obsidian';
-// Remember to rename these classes and interfaces!
+import { Remarkable } from 'remarkable';
+import wikilink from 'remarkable-wikilink';
 
-interface MyPluginSettings {
-	mySetting: string;
+const md = new Remarkable('full');
+md.set({
+	html: true,
+	breaks: true,
+	typographer: true,
+	quotes: '“”‘’'
+  });
+md.use(wikilink);
+
+console.log(md.render(`This is a [[Test]].`));
+
+interface CbrWikiSettings {
+	cbrUrl: string,
+	username: string,
+	password: string,
+	xBrowserId: string,
+	KeyJWT: string
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: CbrWikiSettings = {
+	cbrUrl: '',
+	username: '',
+	password: '',
+	xBrowserId: 'fr45654fgf-b622-2cc0b14369e2d3-09',
+	KeyJWT: ''
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class CbrWiki extends Plugin {
+	settings: CbrWikiSettings;
 	
 	async onload() {
 		await this.loadSettings();
@@ -30,9 +50,9 @@ export default class MyPlugin extends Plugin {
 
 
 
-		// // This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		// const statusBarItemEl = this.addStatusBarItem();
-		// statusBarItemEl.setText('Status Bar Text');
+		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
+		const statusBarItemEl = this.addStatusBarItem();
+		statusBarItemEl.setText('CbrWiki 🧐');
 
 		// // This adds a simple command that can be triggered anywhere
 		// this.addCommand({
@@ -84,8 +104,9 @@ export default class MyPlugin extends Plugin {
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
-	onunload() {
-
+	async onunload() {
+		await this.loadSettings();
+		this.settings.KeyJWT = '';
 	}
 
 	/****
@@ -94,8 +115,7 @@ export default class MyPlugin extends Plugin {
 	 */
 	async cbrWikiArticle(action = `download`){
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		// const cbrUrl = `https://demotour.davintoo.com`;
-		const cbrUrl = `https://home.cbr.rocks`;
+		const cbrUrl = this.settings.cbrUrl;
 		if (view){
 			const mode =  view.getState().mode;
 			if (view.editor && mode === `source`) {
@@ -103,58 +123,71 @@ export default class MyPlugin extends Plugin {
 				const activeFileView = app.workspace.getActiveFileView();
 				const title = activeFileView.file.basename;
 				//test connect to CBR
-				const KeyJWT = await this._getCbrAccessToken();
-				//new Notice(`This is a notice! ${KeyJWT}`);
-				const cbrWiki = await this._getCbr(KeyJWT, `${cbrUrl}/api/rest.php/wiki/${title}`);
+				//const KeyJWT = await this._getCbrAccessToken();
+				this.settings.KeyJWT = await this._getCbrAccessToken();
+				
+				if(this.settings.KeyJWT) {
+					const cbrWiki = await this._getCbr(this.settings.KeyJWT, `${cbrUrl}/api/rest.php/wiki/${title}`);
 
-				if (action === `download`){
-					view.editor.setValue(cbrWiki.content);
-				}
+					if (action === `download`){
+						view.editor.setValue(cbrWiki.content);
+						new Notice(`Article "${title}" has been downloaded ⬇️`, 1500);				
+					}
 
-				if (action === `upload`){
-					const obsContent = view.editor.getValue();
-					const htmlEL =  document.createElement('div');
-					await MarkdownRenderer.renderMarkdown(obsContent, htmlEL, '', null)
-					const url = `${cbrUrl}/api/v2/wiki/update/${cbrWiki.id}`;
-					const data = {
-							"id": cbrWiki.id,
-							"title": title,
-							"content": obsContent,
-							"html": htmlEL.innerHTML
-						};
-					await this._putCbr(KeyJWT, url, data);
-				}
+					if (action === `upload`){
+						const obsContent = view.editor.getValue();
 
-				if (action === `test`){
-					let obsContent = view.editor.getValue();
-					console.log(obsContent);
-					
-	
-					// /**** 
-					//  * Parse the YAML frontmatter
-					//  *    const frontmatter = parseYaml(obsContent.split('---')[1]);
-					//  * alternative
-					//  *    const frontmatter = JSON.parse(activeFileView.lastFrontmatter);
-					//  *	- this added keys "position:"
-					 //  */
-					// const frontmatter = parseYaml(obsContent.split('---')[1]);
-					// // Update the variables
-					// // frontmatter.owner = frontmatter.owner||null;
-					// // frontmatter.type = frontmatter.type||'info';
-					// // frontmatter.aliases = frontmatter.aliases||'';
-	
-					// // Convert the updated object back to a YAML string
-					// const updatedYaml = '---\n' + stringifyYaml(frontmatter) + '---\n';
-	
-					// // Replace the original YAML front matter with the updated YAML string
-					// obsContent = obsContent.replace(/---[\s\S]*?---/, updatedYaml);
-					
-					/**** 
-					 * Set absolute URL for cbr-attachments 
-					 */
-					const absoluteURL = `](${cbrUrl}/s3/` ;
-					obsContent = obsContent.replace(/\]\(\/s3\//, absoluteURL);
-					view.editor.setValue(obsContent);
+						// // == With Use MarkdownRenderer from Obsidian ==
+						// const htmlEL =  document.createElement('div');
+						// await MarkdownRenderer.renderMarkdown(obsContent, htmlEL, '', null);
+						// const htmlContent = htmlEL.innerHTML;
+
+						// == With Use 'remarkable' ==
+						const htmlContent = md.render(obsContent);
+						
+						const url = `${cbrUrl}/api/v2/wiki/update/${cbrWiki.id}`;
+						const data = {
+								"id": cbrWiki.id,
+								"title": title,
+								"content": obsContent,
+								"html": htmlContent
+							};
+						
+						await this._putCbr(this.settings.KeyJWT, url, data);
+						new Notice(`Article "${title}" has been uploaded ⬆️`, 1500);
+					}
+
+					if (action === `test`){
+						let obsContent = view.editor.getValue();
+						console.log(obsContent);
+						
+		
+						// /**** 
+						//  * Parse the YAML frontmatter
+						//  *    const frontmatter = parseYaml(obsContent.split('---')[1]);
+						//  * alternative
+						//  *    const frontmatter = JSON.parse(activeFileView.lastFrontmatter);
+						//  *	- this added keys "position:"
+						//  */
+						// const frontmatter = parseYaml(obsContent.split('---')[1]);
+						// // Update the variables
+						// // frontmatter.owner = frontmatter.owner||null;
+						// // frontmatter.type = frontmatter.type||'info';
+						// // frontmatter.aliases = frontmatter.aliases||'';
+		
+						// // Convert the updated object back to a YAML string
+						// const updatedYaml = '---\n' + stringifyYaml(frontmatter) + '---\n';
+		
+						// // Replace the original YAML front matter with the updated YAML string
+						// obsContent = obsContent.replace(/---[\s\S]*?---/, updatedYaml);
+						
+						/**** 
+						 * Set absolute URL for cbr-attachments 
+						 */
+						const absoluteURL = `](${cbrUrl}/s3/` ;
+						obsContent = obsContent.replace(/\]\(\/s3\//, absoluteURL);
+						view.editor.setValue(obsContent);
+					}
 				}
 
 			} else {
@@ -164,105 +197,82 @@ export default class MyPlugin extends Plugin {
 	}
 
 	async _getCbrAccessToken(){
-		const xBrowserId = `fr45654fgf-b622-2cc0b14369e2d3viyar`;
-		const username = `apirobotwiki`;
-		const password = `mvi75Yh16Re917vu`;
-		const cbrUrl = `https://home.cbr.rocks`;
-		// const username = `apirobot`;
-		// const password = `A2p0i1r9obot`;
-		// const cbrUrl = `https://demotour.davintoo.com`;
+		const xBrowserId = this.settings.xBrowserId;
+		const username = this.settings.username;
+		const password = this.settings.password;
+		const cbrUrl = this.settings.cbrUrl;
 		const payload = {"email": username,"password": password,"browser_id": xBrowserId};
-		const response = JSON.parse(await request({
-			url: cbrUrl + `/api/rest.php/auth/session`,
-			method: "POST",
-			contentType: "application/json;charset=UTF-8",
-			body: JSON.stringify(payload),
-			headers: {
-				'x-browser-id': xBrowserId,
+
+		try {
+			const response = JSON.parse(await request({
+				url: cbrUrl + `/api/rest.php/auth/session`,
+				method: "POST",
+				contentType: "application/json;charset=UTF-8",
+				body: JSON.stringify(payload),
+				headers: {
+					'x-browser-id': xBrowserId,
+				}
+			}));
+			if (response.jwt_token) {
+				return response.jwt_token;
+			} else {
+				throw new Error("Failed to obtain JWT token");
 			}
-		}));
-		console.log(response.jwt_token);
-		return response.jwt_token || null;
+		} catch (error) {
+			new Notice(`Error occurred during _getCbrAccessToken ${error}`);
+			console.error("Error occurred during _getCbrAccessToken:", error);
+			return null;
+		}
 	}
 
 	async _getCbr(KeyJWT: string, urlRequest: string) {
-		const xBrowserId = `fr45654fgf-b622-2cc0b14369e2d3viyar`;
-		const response = JSON.parse(await request({
-			url: urlRequest,
-			method: "GET",
-			headers: {
+		const xBrowserId = this.settings.xBrowserId;
+		try {
+			const response = JSON.parse(await request({
+				url: urlRequest,
+				method: "GET",
+				headers: {
+					'Authorization': `Bearer ${KeyJWT}`,
+					'Content-Type': `application/json;charset=UTF-8`,
+					'x-browser-id': xBrowserId
+				},
+			}));
+			if (response) {
+				return response;
+			} else {
+				throw new Error(`Failed to obtain ${urlRequest}`);
+			}
+		} catch (error) {
+			new Notice(`Error occurred during _getCbr ${error}`);
+			console.error(`Error occurred during _getCbr ${urlRequest}:`, error);
+			return null;
+		}
+	}
+
+	async _putCbr(KeyJWT: string, urlRequest: string, data: object) {
+		const xBrowserId = this.settings.xBrowserId;
+		try {
+			const response = JSON.parse(await request({
+				url: urlRequest,
+				method: "PUT",
+				headers: {
 				'Authorization': `Bearer ${KeyJWT}`,
 				'Content-Type': `application/json;charset=UTF-8`,
 				'x-browser-id': xBrowserId
-			},
-		}));
-		return response || null;
+				},
+				body: JSON.stringify(data)
+			}));
+			if (response) {
+				return response;
+			} else {
+				throw new Error(`Failed to put ${urlRequest}`);
+			}
+		} catch (error) {
+			new Notice(`Error occurred during _putCbr ${error}`);
+			console.error("Error occurred during _putCbr:", error);
+			return null;
+		}
 	}
-
-	async _putCbr(KeyJWT: string, urlRequest: string, data: any) {
-		const xBrowserId = `fr45654fgf-b622-2cc0b14369e2d3viyar`;
-		const response = JSON.parse(await request({
-			url: urlRequest,
-			method: "PUT",
-			headers: {
-			'Authorization': `Bearer ${KeyJWT}`,
-			'Content-Type': `application/json;charset=UTF-8`,
-			'x-browser-id': xBrowserId
-			},
-			body: JSON.stringify(data)
-		}));
-		return response || null;
-	}
-
-	/***
-	function getRequestCbrAPI(KeyJWT, urlRequest) {
-		let response = UrlFetchApp.fetch(
-		  urlRequest,
-		  {
-			headers: {
-			  'Authorization': 'Bearer ' + KeyJWT,
-			  'Content-Type': 'application/json;charset=UTF-8',
-			  'x-browser-id': xBrowserId
-			},
-			'method': 'get',
-			'muteHttpExceptions': (!DEVMODE)
-		  });
-		let rez = {
-		  '200': function response200() {
-			let res = JSON.parse(response.getContentText());
-			return res;
-		  },
-		  'default': function () {
-			return 'Error ' + response.getResponseCode() + ': ' + response.getContentText();
-		  }
-		};
-		return (rez[response.getResponseCode()] || rez['default'])();
-	  }
-	  
-	  function postRequestCbrAPI(KeyJWT, urlRequest, payload) {
-		let response = UrlFetchApp.fetch(
-		  urlRequest,
-		  {
-			headers: {
-			  'Authorization': 'Bearer ' + KeyJWT,
-			  'Content-Type': 'application/json;charset=UTF-8'
-			},
-			'method': 'POST',
-			'payload': payload,
-			'muteHttpExceptions': (!DEVMODE)
-		  });
-		let rez = {
-		  '200': function response200() {
-			let res = JSON.parse(response.getContentText());
-			return res;
-		  },
-		  'default': function () {
-			return 'Error ' + response.getResponseCode() + ': ' + response.getContentText();
-		  }
-		};
-		return (rez[response.getResponseCode()] || rez['default'])();
-	  }
-	  ***/
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -290,9 +300,9 @@ class SampleModal extends Modal {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: CbrWiki;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: CbrWiki) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -302,17 +312,51 @@ class SampleSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
+		containerEl.createEl('h2', {text: 'CbrWiki. Settings'});
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('URL of LMS Collaborator domain')
+			.setDesc('Example: https://mysite.com')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('Enter your domain URL')
+				.setValue(this.plugin.settings.cbrUrl)
 				.onChange(async (value) => {
 					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.cbrUrl = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('User')
+			.setDesc('Login or e-mail')
+			.addText(text => text
+				.setPlaceholder('Enter your Login or e-mail')
+				.setValue(this.plugin.settings.username)
+				.onChange(async (value) => {
+					console.log('Secret: ' + value);
+					this.plugin.settings.username = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Password')
+			.setDesc('It\'s a secret')
+			.addText(text => text
+				.setPlaceholder('Enter your password')
+				.setValue(this.plugin.settings.password)
+				.onChange(async (value) => {
+					this.plugin.settings.password = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('xBrowserId')
+			.setDesc('Like as fr45654fgf-b622-2cc0b1436')
+			.addText(text => text
+				.setPlaceholder('Enter your xBrowserId')
+				.setValue(this.plugin.settings.xBrowserId)
+				.onChange(async (value) => {
+					this.plugin.settings.xBrowserId = value;
 					await this.plugin.saveSettings();
 				}));
 	}
