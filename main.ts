@@ -2,26 +2,6 @@ import { App, Editor, MarkdownView, MarkdownRenderer, Modal, Notice, Plugin, Plu
 import { Remarkable, escapeHtml } from 'remarkable';
 import wikilink from 'remarkable-wikilink';
 
-
-//for redefine remarkable-wikilink functions 
-const HTML_ESCAPE_TEST_RE = /[&<>"]/;
-const HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
-const HTML_REPLACEMENTS = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;'
-};
-function replaceUnsafeChar(ch: string) {
-	return HTML_REPLACEMENTS[ch];
-}
-function escapeHtml(str: string) {
-	if (HTML_ESCAPE_TEST_RE.test(str)) {
-		return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
-	}
-	return str;
-}
-
 const md = new Remarkable('full');
 md.set({
 	html: true,
@@ -30,13 +10,33 @@ md.set({
 	quotes: '“”‘’'
   });
 md.use(wikilink);
-md.renderer.rules.wikilink_open = function (tokens, idx, options /*, env */) {
-		return `<a href="/wiki/${escapeHtml(encodeURIComponent(tokens[idx].href))}" class="wikilink">`;
+
+// Fix redefine remarkable-wikilink functions for supporting LMS Collaborator Wiki links
+// begin fix
+	const HTML_ESCAPE_TEST_RE = /[&<>"]/;
+	const HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
+	const HTML_REPLACEMENTS = {
+	'&': '&amp;',
+	'<': '&lt;',
+	'>': '&gt;',
+	'"': '&quot;'
 	};
 
-console.log(md.render(`This is a [[Test]].`));
+	function replaceUnsafeChar(ch: string) {
+		return HTML_REPLACEMENTS[ch];
+	}
 
+	function escapeHtml(str: string) {
+		if (HTML_ESCAPE_TEST_RE.test(str)) {
+			return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
+		}
+		return str;
+	}
 
+	md.renderer.rules.wikilink_open = function (tokens, idx, options /*, env */) {
+		return `<a href="/wiki/${escapeHtml(encodeURIComponent(tokens[idx].href))}" class="wikilink">`;
+	};
+// end fix
 
 
 
@@ -79,7 +79,7 @@ export default class CbrWiki extends Plugin {
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('CbrWiki 🧐');
+		statusBarItemEl.setText('🇺🇦 CbrWiki');
 
 		// // This adds a simple command that can be triggered anywhere
 		// this.addCommand({
@@ -158,7 +158,7 @@ export default class CbrWiki extends Plugin {
 
 					if (action === `download`){
 						view.editor.setValue(cbrWiki.content);
-						new Notice(`Article "${title}" has been downloaded ⬇️`, 1500);				
+						new Notice(`Article "${title}" has been downloaded ⤵️`, 1500);				
 					}
 
 					if (action === `upload`){
@@ -183,14 +183,12 @@ export default class CbrWiki extends Plugin {
 							};
 						
 						await this._putCbr(this.settings.KeyJWT, url, data);
-						new Notice(`Article "${title}" has been uploaded ⬆️`, 1500);
+						new Notice(`Article "${title}" has been uploaded ⤴️`, 1500);
 					}
 
 					if (action === `test`){
 						let obsContent = view.editor.getValue();
-						console.log(obsContent);
 						
-		
 						// /**** 
 						//  * Parse the YAML frontmatter
 						//  *    const frontmatter = parseYaml(obsContent.split('---')[1]);
@@ -312,21 +310,21 @@ export default class CbrWiki extends Plugin {
 	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+// class SampleModal extends Modal {
+// 	constructor(app: App) {
+// 		super(app);
+// 	}
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+// 	onOpen() {
+// 		const {contentEl} = this;
+// 		contentEl.setText('Woah!');
+// 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
+// 	onClose() {
+// 		const {contentEl} = this;
+// 		contentEl.empty();
+// 	}
+// }
 
 class SampleSettingTab extends PluginSettingTab {
 	plugin: CbrWiki;
