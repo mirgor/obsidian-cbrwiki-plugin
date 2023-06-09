@@ -2,10 +2,9 @@
 	"id": "obsidian-cbrwiki-plugin",
 	"name": "CbrWiki",
 	"version": "1.0.1",
-	"minAppVersion": "0.15.0",
-	"description": "This is a sample plugin for Obsidian. This plugin demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"minAppVersion": "1.3.0",
+	"description": "This is a plugin for Obsidian (https://obsidian.md) that allows to sync md-articles with LMS Collaborator Wiki (https://collaborator.biz)",
+	"author": "@MBotsula",
+	"authorUrl": "https://collaborator.biz/",
 	"isDesktopOnly": false
 }

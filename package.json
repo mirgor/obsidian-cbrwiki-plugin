@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-cbrwiki-plugin",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "This is a plugin for Obsidian (https://obsidian.md) that allows to sync md-articles with LMS Collaborator Wiki (https://collaborator.biz)",
 	"main": "main.js",
 	"scripts": {
