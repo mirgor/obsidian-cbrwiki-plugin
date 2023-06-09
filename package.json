@@ -1,15 +1,19 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-cbrwiki-plugin",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "This is a plugin for Obsidian (https://obsidian.md) that allows to sync md-articles with LMS Collaborator Wiki (https://collaborator.biz)",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
+	"keywords": [
+		"wiki",
+		"obsidian plugin",
+		"lmscollaborator"
+	],
+	"author": "@MBotsula",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/markdown-it": "^12.2.3",

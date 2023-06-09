@@ -1,6 +1,26 @@
 import { App, Editor, MarkdownView, MarkdownRenderer, Modal, Notice, Plugin, PluginSettingTab, Setting, parseYaml, stringifyYaml, request } from 'obsidian';
-import { Remarkable } from 'remarkable';
+import { Remarkable, escapeHtml } from 'remarkable';
 import wikilink from 'remarkable-wikilink';
+
+
+//for redefine remarkable-wikilink functions 
+const HTML_ESCAPE_TEST_RE = /[&<>"]/;
+const HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
+const HTML_REPLACEMENTS = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;'
+};
+function replaceUnsafeChar(ch: string) {
+	return HTML_REPLACEMENTS[ch];
+}
+function escapeHtml(str: string) {
+	if (HTML_ESCAPE_TEST_RE.test(str)) {
+		return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
+	}
+	return str;
+}
 
 const md = new Remarkable('full');
 md.set({
@@ -10,8 +30,15 @@ md.set({
 	quotes: '“”‘’'
   });
 md.use(wikilink);
+md.renderer.rules.wikilink_open = function (tokens, idx, options /*, env */) {
+		return `<a href="/wiki/${escapeHtml(encodeURIComponent(tokens[idx].href))}" class="wikilink">`;
+	};
 
 console.log(md.render(`This is a [[Test]].`));
+
+
+
+
 
 interface CbrWikiSettings {
 	cbrUrl: string,
@@ -136,6 +163,8 @@ export default class CbrWiki extends Plugin {
 
 					if (action === `upload`){
 						const obsContent = view.editor.getValue();
+
+						
 
 						// // == With Use MarkdownRenderer from Obsidian ==
 						// const htmlEL =  document.createElement('div');
