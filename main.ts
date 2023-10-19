@@ -11,6 +11,7 @@ md.set({
   });
 md.use(wikilink);
 
+
 // Fix redefine remarkable-wikilink functions for supporting LMS Collaborator Wiki links
 // begin fix
 	const HTML_ESCAPE_TEST_RE = /[&<>"]/;
@@ -42,18 +43,14 @@ md.use(wikilink);
 
 interface CbrWikiSettings {
 	cbrUrl: string,
-	username: string,
-	password: string,
-	xBrowserId: string,
-	KeyJWT: string
+	xBrowserId: string
+	APItoken: string,
 }
 
 const DEFAULT_SETTINGS: CbrWikiSettings = {
 	cbrUrl: '',
-	username: '',
-	password: '',
 	xBrowserId: 'fr45654fgf-b622-2cc0b14369e2d3-09',
-	KeyJWT: ''
+	APItoken: ''
 }
 
 export default class CbrWiki extends Plugin {
@@ -133,7 +130,7 @@ export default class CbrWiki extends Plugin {
 
 	async onunload() {
 		await this.loadSettings();
-		this.settings.KeyJWT = '';
+		this.settings.APItoken = '';
 	}
 
 	/****
@@ -149,12 +146,9 @@ export default class CbrWiki extends Plugin {
 				//get current article filename (title)
 				const activeFileView = app.workspace.getActiveFileView();
 				const title = activeFileView.file.basename;
-				//test connect to CBR
-				//const KeyJWT = await this._getCbrAccessToken();
-				this.settings.KeyJWT = await this._getCbrAccessToken();
 				
-				if(this.settings.KeyJWT) {
-					const cbrWiki = await this._getCbr(this.settings.KeyJWT, `${cbrUrl}/api/rest.php/wiki/${title}`);
+				if(this.settings.APItoken) {
+					const cbrWiki = await this._getCbr(`${cbrUrl}/api/rest.php/wiki/${title}`);
 
 					if (action === `download`){
 						view.editor.setValue(cbrWiki.content);
@@ -182,7 +176,7 @@ export default class CbrWiki extends Plugin {
 								"html": htmlContent
 							};
 						
-						await this._putCbr(this.settings.KeyJWT, url, data);
+						await this._putCbr(url, data);
 						new Notice(`Article "${title}" has been uploaded ⤴️`, 1500);
 					}
 
@@ -223,45 +217,15 @@ export default class CbrWiki extends Plugin {
 		} 
 	}
 
-	async _getCbrAccessToken(){
-		const xBrowserId = this.settings.xBrowserId;
-		const username = this.settings.username;
-		const password = this.settings.password;
-		const cbrUrl = this.settings.cbrUrl;
-		const payload = {"email": username,"password": password,"browser_id": xBrowserId};
-
-		try {
-			const response = JSON.parse(await request({
-				url: cbrUrl + `/api/rest.php/auth/session`,
-				method: "POST",
-				contentType: "application/json;charset=UTF-8",
-				body: JSON.stringify(payload),
-				headers: {
-					'x-browser-id': xBrowserId,
-				}
-			}));
-			if (response.jwt_token) {
-				return response.jwt_token;
-			} else {
-				throw new Error("Failed to obtain JWT token");
-			}
-		} catch (error) {
-			new Notice(`Error occurred during _getCbrAccessToken ${error}`);
-			console.error("Error occurred during _getCbrAccessToken:", error);
-			return null;
-		}
-	}
-
-	async _getCbr(KeyJWT: string, urlRequest: string) {
-		const xBrowserId = this.settings.xBrowserId;
+	async _getCbr(urlRequest: string) {
 		try {
 			const response = JSON.parse(await request({
 				url: urlRequest,
 				method: "GET",
 				headers: {
-					'Authorization': `Bearer ${KeyJWT}`,
+					'x-cbr-authorization': `Bearer ${this.settings.APItoken}`,
 					'Content-Type': `application/json;charset=UTF-8`,
-					'x-browser-id': xBrowserId
+					'x-browser-id': this.settings.xBrowserId
 				},
 			}));
 			if (response) {
@@ -276,16 +240,15 @@ export default class CbrWiki extends Plugin {
 		}
 	}
 
-	async _putCbr(KeyJWT: string, urlRequest: string, data: object) {
-		const xBrowserId = this.settings.xBrowserId;
+	async _putCbr(urlRequest: string, data: object) {
 		try {
 			const response = JSON.parse(await request({
 				url: urlRequest,
 				method: "PUT",
 				headers: {
-				'Authorization': `Bearer ${KeyJWT}`,
+				'x-cbr-authorization': `Bearer ${this.settings.APItoken}`,
 				'Content-Type': `application/json;charset=UTF-8`,
-				'x-browser-id': xBrowserId
+				'x-browser-id': this.settings.xBrowserId
 				},
 				body: JSON.stringify(data)
 			}));
@@ -354,25 +317,14 @@ class SampleSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('User')
-			.setDesc('Login or e-mail')
+			.setName('APItoken')
+			.setDesc('LMS Collaborator API token')
 			.addText(text => text
-				.setPlaceholder('Enter your Login or e-mail')
-				.setValue(this.plugin.settings.username)
+				.setPlaceholder('Enter your API token')
+				.setValue(this.plugin.settings.APItoken)
 				.onChange(async (value) => {
 					console.log('Secret: ' + value);
-					this.plugin.settings.username = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Password')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your password')
-				.setValue(this.plugin.settings.password)
-				.onChange(async (value) => {
-					this.plugin.settings.password = value;
+					this.plugin.settings.APItoken = value;
 					await this.plugin.saveSettings();
 				}));
 
